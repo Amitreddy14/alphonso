@@ -70,6 +70,10 @@ function WeatherInsights() {
       if (temperature < 30 && temperature >= 20)  
         alerts.push({ type: 'Optimal Temperature', message: 'Ideal temperature for crop growth', severity: 'warning' });
       
+      if (temperature > 30)  
+        alerts.push({ type: 'Intense Heat', message: 'Extreme heat stress can severely damage crops and hinder growth', severity: 'warning' });
+    
+
       if (temperature < 20 && temperature >= 15)  
         alerts.push({ type: 'Cool Temperature', message: 'Monitor for slow plant growth in some crops', severity: 'info' });
       

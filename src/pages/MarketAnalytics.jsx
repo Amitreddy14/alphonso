@@ -338,7 +338,7 @@ function MarketAnalytics() {
             <div className="mt-2 space-y-2">
               {priceAlerts.map((alert, index) => (
                 <p key={index} className="text-sm text-yellow-700">
-                  <span className="font-medium">{alert.type}:</span> {alert.message} ({alert.confidence}% confidence) - Updated: {new Date(alert.timestamp).toLocaleString()}
+                  <span className="font-medium">{alert.type}:</span> {alert.message} ({alert.confidence}% confidence) 
                 </p>
               ))}
             </div>
@@ -392,7 +392,7 @@ function MarketAnalytics() {
                 <span className="text-sm font-medium text-gray-900">{marketInsights.predictedTrend}</span>
               </div>
             </div>
-            <p className="mt-4 text-sm text-gray-500">Analysis based on market trends as of March 9, 2025.</p>
+            {/* <p className="mt-4 text-sm text-gray-500">Analysis based on market trends as of March 9, 2025.</p> */}
           </div>
 
           {/* Recommendations */}
@@ -472,7 +472,7 @@ function MarketAnalytics() {
                 <span className="font-medium">Key Driver:</span> {marketInsights.priceAlerts[0].message}
               </p>
             </div>
-            <p className="mt-4 text-sm text-gray-500">Sentiment analysis updated as of March 9, 2025.</p>
+            {/* <p className="mt-4 text-sm text-gray-500">Sentiment analysis updated as of March 9, 2025.</p> */}
           </div>
 
           {/* Regional Price Variations */}
@@ -533,7 +533,7 @@ function MarketAnalytics() {
               ) : (
                 <p className="text-gray-600">No news available at the moment.</p>
               )}
-              <p className="mt-4 text-sm text-gray-500">News fetched in real-time from credible English-language sources as of March 9, 2025.</p>
+              {/* <p className="mt-4 text-sm text-gray-500">News fetched in real-time from credible English-language sources as of March 9, 2025.</p> */}
             </div>
           </ErrorBoundary>
         </div>

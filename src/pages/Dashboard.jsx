@@ -52,14 +52,14 @@ const DashboardContent = () => {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <DashboardCard
+        {/* <DashboardCard
           icon={Droplets}
           title="Soil Moisture"
           value={`${soilData?.moisture || 0}%`}
           trend={soilData?.trend}
           subtitle="Optimal range: 60-85%"
           bgColor="bg-blue-50 text-blue-500"
-        />
+        /> */}
 
         <DashboardCard
           icon={ThermometerSun}
@@ -70,22 +70,22 @@ const DashboardContent = () => {
           bgColor="bg-orange-50 text-orange-500"
         />
 
-        <DashboardCard
+        {/* <DashboardCard
           icon={Wind}
           title="Wind Speed"
           value={`${weatherData?.wind?.speed || 0} km/h`}
           subtitle={`Direction: ${weatherData?.wind?.deg || 0}°`}
           bgColor="bg-green-50 text-green-500"
-        />
+        /> */}
 
-        <DashboardCard
+        {/* <DashboardCard
           icon={AlertTriangle}
           title="Disease Alerts"
           value={diseaseData?.riskLevel || 'Low Risk'}
           trend={`${diseaseData?.activeAlerts || 0} Active`}
           subtitle={diseaseData?.recommendation}
           bgColor="bg-purple-50 text-purple-500"
-        />
+        /> */}
       </div>
 
       {/* Market Trends */}
