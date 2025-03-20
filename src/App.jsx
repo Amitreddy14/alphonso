@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Sidebar from "./components/Sidebar.jsx";
 import Navbar from "./components/Navbar.jsx";
@@ -13,13 +13,49 @@ import AISupport from "./pages/AISupport.jsx";
 import Landing from "./pages/Landing.jsx";
 import AuthPages from "./pages/AuthPages.jsx";
 import Voicechatbot from "./pages/Voicechatbot.jsx";
+import CropPrediction from "./pages/CropPrediction.jsx";
 
 export default function App() {
   const [auraEnabled, setAuraEnabled] = useState(false);
+  const [soilMoisture, setSoilMoisture] = useState(null); // State for soil moisture data
+  const [ws, setWs] = useState(null); // WebSocket instance
 
   const toggleAura = () => {
     setAuraEnabled(!auraEnabled);
   };
+
+  // WebSocket connection setup
+  useEffect(() => {
+    const websocket = new WebSocket("ws://localhost:5000"); // Connect to backend WebSocket server
+
+    websocket.onopen = () => {
+      console.log("Connected to WebSocket server");
+    };
+
+    websocket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === "soilMoisture") {
+        setSoilMoisture(data.value); // Update soil moisture state
+      }
+    };
+
+    websocket.onerror = (error) => {
+      console.error("WebSocket error:", error);
+    };
+
+    websocket.onclose = () => {
+      console.log("WebSocket connection closed");
+    };
+
+    setWs(websocket);
+
+    // Cleanup on unmount
+    return () => {
+      if (websocket.readyState === WebSocket.OPEN) {
+        websocket.close();
+      }
+    };
+  }, []);
 
   return (
     <Router>
@@ -36,7 +72,11 @@ export default function App() {
           path="/*"
           element={
             <PrivateRoute>
-              <ProtectedLayout toggleAura={toggleAura} auraEnabled={auraEnabled} />
+              <ProtectedLayout
+                toggleAura={toggleAura}
+                auraEnabled={auraEnabled}
+                soilMoisture={soilMoisture} // Pass soil moisture to protected layout
+              />
             </PrivateRoute>
           }
         />
@@ -46,7 +86,7 @@ export default function App() {
 }
 
 /* Protected Layout - Includes Sidebar & Navbar */
-function ProtectedLayout({ toggleAura, auraEnabled }) {
+function ProtectedLayout({ toggleAura, auraEnabled, soilMoisture }) {
   return (
     <div className="flex">
       <Sidebar />
@@ -62,6 +102,10 @@ function ProtectedLayout({ toggleAura, auraEnabled }) {
             <Route path="/crop-calendar" element={<CropCalendar />} />
             <Route path="/ai-support" element={<AISupport />} />
             <Route path="/voice-support" element={<Voicechatbot />} />
+            <Route
+              path="/crop-prediction"
+              element={<CropPrediction soilMoisture={soilMoisture} />} // Pass soil moisture to CropPrediction
+            />
           </Routes>
         </main>
       </div>

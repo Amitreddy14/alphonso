@@ -13,7 +13,7 @@ import {
 } from 'react-icons/bs';
 import { GiSprout } from "react-icons/gi";
 import { MdOutlineRecordVoiceOver } from "react-icons/md";
-
+import { FaSeedling } from "react-icons/fa"; // Added icon for Crop Prediction
 
 function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -27,6 +27,7 @@ function Sidebar() {
     { path: '/subsidy-checker', icon: BsCash, label: 'Subsidy Checker' },
     { path: '/ai-support', icon: BsChatDots, label: 'AI Support' },
     { path: '/voice-support', icon: MdOutlineRecordVoiceOver, label: 'Voice Support' },
+    { path: '/crop-prediction', icon: FaSeedling, label: 'Crop Prediction' }, // Added Crop Prediction
   ];
 
   return (
@@ -44,7 +45,7 @@ function Sidebar() {
         >
           <div className="h-16 flex items-center justify-between px-6 border-b border-gray-100">
             <div className="flex items-center space-x-2">
-            <GiSprout className="h-6 w-6 text-emerald-600" />
+              <GiSprout className="h-6 w-6 text-emerald-600" />
               <span className="text-xl font-semibold text-gray-800">Prithvi Mitra</span>
             </div>
             <button
@@ -85,7 +86,7 @@ function Sidebar() {
         <div className="bg-white w-64 h-full border-r border-gray-100 shadow-sm">
           <div className="h-16 flex items-center px-6 border-b border-gray-100">
             <div className="flex items-center space-x-2">
-            <GiSprout className="h-6 w-6 text-emerald-600" />
+              <GiSprout className="h-6 w-6 text-emerald-600" />
               <span className="text-xl font-semibold text-gray-800">Prithvi Mitra</span>
             </div>
           </div>
