@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+
+}
+/* Aura Light Effect */
+@keyframes aura {
+  0% {
+    background: radial-gradient(circle, rgba(0, 132, 255, 0.5), transparent);
+  }
+  50% {
+    background: radial-gradient(circle, rgba(170, 0, 255, 0.5), transparent);
+  }
+  100% {
+    background: radial-gradient(circle, rgba(0, 132, 255, 0.5), transparent);
+  }
+}
+
+.aura-bg {
+  animation: aura 6s infinite alternate ease-in-out;
+  position: fixed;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  top: 0;
+  left: 0;
+}
+/* Aura Light Effect for Navbar */
+@keyframes aura-nav {
+  0% {
+    background: radial-gradient(circle, rgba(255, 102, 0, 0.5), transparent);
+  }
+  50% {
+    background: radial-gradient(circle, rgba(255, 0, 204, 0.5), transparent);
+  }
+  100% {
+    background: radial-gradient(circle, rgba(255, 102, 0, 0.5), transparent);
+  }
+}
+
+.aura-nav {
+  animation: aura-nav 5s infinite alternate ease-in-out;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+
+
+
+
+
