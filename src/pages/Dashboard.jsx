@@ -69,6 +69,7 @@ const DashboardContent = () => {
           subtitle={`Feels like: ${weatherData?.main?.feels_like?.toFixed(1) || 0}°C`}
           bgColor="bg-orange-50 text-orange-500"
         />
+        
 
         {/* <DashboardCard
           icon={Wind}
