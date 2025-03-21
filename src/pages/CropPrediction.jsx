@@ -13,6 +13,7 @@ const CropPrediction = ({ soilMoisture }) => {
   const [error, setError] = useState(null);
   const [analysis, setAnalysis] = useState(null);
   const [selectedLocation, setSelectedLocation] = useState('');
+  const [sowingPeriod, setSowingPeriod] = useState(''); // New state for sowing period
 
   const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
 
@@ -26,6 +27,13 @@ const CropPrediction = ({ soilMoisture }) => {
     'Lucknow': { lat: 26.8467, lon: 80.9462 },
     'Hyderabad': { lat: 17.3850, lon: 78.4867 }
   };
+
+  const sowingPeriods = [
+    { name: 'Winter (Dec-Feb)', value: 'winter' },
+    { name: 'Spring (Mar-May)', value: 'spring' },
+    { name: 'Summer (Jun-Aug)', value: 'summer' },
+    { name: 'Fall (Sep-Nov)', value: 'fall' }
+  ];
 
   useEffect(() => {
     const fetchWeatherData = async (lat, lon) => {
@@ -95,6 +103,10 @@ const CropPrediction = ({ soilMoisture }) => {
     setSelectedLocation(e.target.value);
   };
 
+  const handleSowingPeriodChange = (e) => {
+    setSowingPeriod(e.target.value);
+  };
+
   const fileToGenerativePart = async (file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -115,12 +127,10 @@ const CropPrediction = ({ soilMoisture }) => {
 
   const parseAnalysisResponse = (text) => {
     try {
-      // Extract overall confidence
       const overallMatch = text.match(/Overall Confidence: (\d+%)/i);
       const overallConfidence = overallMatch ? overallMatch[1] : 'N/A';
       const cleanedText = text.replace(/Overall Confidence: \d+%\n?/, '').trim();
 
-      // Split into sections
       const sections = cleanedText.split(/\d+\.\s+(?=Soil Identification|Soil Health|Crop Recommendations|Soil Improvement|Disease Prevention)/).filter(Boolean);
 
       const formatSection = (section) => {
@@ -247,11 +257,17 @@ const CropPrediction = ({ soilMoisture }) => {
       const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
       const moistureText = soilMoisture !== null ? `Soil Moisture: ${soilMoisture}%` : "Soil Moisture: Not available";
-      const weatherText = weatherData
-        ? `Past Weather (12 months seasonal avg) - Winter (Dec-Feb): Temp ${weatherData.past.winter.temp}°C, Humidity ${weatherData.past.winter.humidity}%, Precip ${weatherData.past.winter.precip}mm; Spring (Mar-May): Temp ${weatherData.past.spring.temp}°C, Humidity ${weatherData.past.spring.humidity}%, Precip ${weatherData.past.spring.precip}mm; Summer (Jun-Aug): Temp ${weatherData.past.summer.temp}°C, Humidity ${weatherData.past.summer.humidity}%, Precip ${weatherData.past.summer.precip}mm; Fall (Sep-Nov): Temp ${weatherData.past.fall.temp}°C, Humidity ${weatherData.past.fall.humidity}%, Precip ${weatherData.past.fall.precip}mm; Future Weather (5-day avg): Temp ${weatherData.future.temperature}°C, Humidity ${weatherData.future.humidity}%, Precip ${weatherData.future.precipitation}mm`
-        : "Weather Data: Not available";
+      let weatherText;
+      if (sowingPeriod && weatherData) {
+        const periodName = sowingPeriods.find(p => p.value === sowingPeriod)?.name || sowingPeriod;
+        weatherText = `Weather for selected sowing period (${periodName}): Temp ${weatherData.past[sowingPeriod].temp}°C, Humidity ${weatherData.past[sowingPeriod].humidity}%, Precip ${weatherData.past[sowingPeriod].precip}mm`;
+      } else if (weatherData) {
+        weatherText = `Current Weather (5-day avg from API): Temp ${weatherData.future.temperature}°C, Humidity ${weatherData.future.humidity}%, Precip ${weatherData.future.precipitation}mm`;
+      } else {
+        weatherText = "Weather Data: Not available";
+      }
 
-      const prompt = `Analyze this soil image along with the provided NPK values (Nitrogen: ${npkValues.nitrogen} mg/kg, Phosphorus: ${npkValues.phosphorus} mg/kg, Potassium: ${npkValues.potassium} mg/kg), ${moistureText}, and ${weatherText}. Provide a clear, concise analysis for the next 6 months (full crop cycle from planting to harvest), predicting crop suitability and potential diseases based on past seasonal trends and short-term future weather, in the following format, including an overall confidence percentage for the entire analysis and confidence scores where applicable:
+      const prompt = `Analyze this soil image along with the provided NPK values (Nitrogen: ${npkValues.nitrogen} mg/kg, Phosphorus: ${npkValues.phosphorus} mg/kg, Potassium: ${npkValues.potassium} mg/kg), ${moistureText}, and ${weatherText}. Provide a clear, concise analysis for the next 6 months (full crop cycle from planting to harvest) starting from ${sowingPeriod ? `the selected sowing period (${sowingPeriods.find(p => p.value === sowingPeriod)?.name})` : 'the current date'}, predicting crop suitability and potential diseases based on the provided weather data, in the following format, including an overall confidence percentage for the entire analysis and confidence scores where applicable:
 
 Overall Confidence: [percentage]
 
@@ -269,22 +285,22 @@ Overall Confidence: [percentage]
 
 3. Crop Recommendations
 - Best Crops: [list] (Confidence: [percentage])
-- Suitability: [brief explanation considering past seasonal trends and future weather for next 6 months]
+- Suitability: [brief explanation considering the provided weather data]
 - Yield Potential: [Low/Medium/High]
-- Irrigation Needs: [brief, considering weather trends]
-- Harvest Timing: [brief, considering weather trends for next 6 months]
+- Irrigation Needs: [brief, considering the provided weather]
+- Harvest Timing: [brief, considering 6-month cycle from sowing start]
 
 4. Soil Improvement
 - Amendments: [list]
 - Application: [brief]
-- Timing: [brief considering past and future weather trends]
+- Timing: [brief considering the provided weather]
 - Maintenance: [brief tips for next 6 months]
 
 5. Disease Prevention
-- Potential Diseases: [list diseases for recommended crops, considering soil, NPK, moisture, and weather]
+- Potential Diseases: [list diseases for recommended crops, considering soil, NPK, moisture, and provided weather]
 - Risk Factors: [brief, e.g., high humidity, poor drainage]
 - Prevention Methods: [brief list, e.g., crop rotation, fungicides]
-- Timing: [when to apply prevention, considering weather trends]
+- Timing: [when to apply prevention, considering the provided weather]
 
 Keep responses brief and clear, avoiding unnecessary formatting. If any section cannot be determined, use "Unknown" or "Not detectable" with a confidence of 0%.`;
 
@@ -410,6 +426,17 @@ Keep responses brief and clear, avoiding unnecessary formatting. If any section 
                       <option key={city} value={city}>{city}</option>
                     ))}
                   </select>
+                  <h3 className="text-lg font-medium text-gray-900 mt-4 mb-2">Select Sowing Period (Optional)</h3>
+                  <select
+                    value={sowingPeriod}
+                    onChange={handleSowingPeriodChange}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Use current weather</option>
+                    {sowingPeriods.map((period) => (
+                      <option key={period.value} value={period.value}>{period.name}</option>
+                    ))}
+                  </select>
                   <p className="text-gray-700 mt-2">
                     Real-time Soil Moisture: {soilMoisture !== null ? `${soilMoisture}%` : "Not available"}
                   </p>
@@ -428,9 +455,21 @@ Keep responses brief and clear, avoiding unnecessary formatting. If any section 
                       <p className="text-gray-700 ml-4">
                         Fall: {weatherData.past.fall.temp}°C, {weatherData.past.fall.humidity}% Humidity, {weatherData.past.fall.precip}mm Precip
                       </p>
-                      <p className="text-gray-700 mt-2">
-                        Future Weather (5-day avg): {weatherData.future.temperature}°C, {weatherData.future.humidity}% Humidity, {weatherData.future.precipitation}mm Precip
-                      </p>
+                      {sowingPeriod ? (
+                        <p className="text-gray-700 mt-2">
+                          Selected Sowing Period ({sowingPeriods.find(p => p.value === sowingPeriod)?.name}): 
+                          Temp {weatherData.past[sowingPeriod].temp}°C, 
+                          Humidity {weatherData.past[sowingPeriod].humidity}%, 
+                          Precip {weatherData.past[sowingPeriod].precip}mm
+                        </p>
+                      ) : (
+                        <p className="text-gray-700 mt-2">
+                          Current Weather (5-day avg): 
+                          Temp {weatherData.future.temperature}°C, 
+                          Humidity {weatherData.future.humidity}%, 
+                          Precip {weatherData.future.precipitation}mm
+                        </p>
+                      )}
                     </>
                   ) : (
                     <p className="text-gray-700 mt-2">Weather Data: Loading...</p>
