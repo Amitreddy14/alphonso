@@ -39,12 +39,18 @@ AgriTech | AI-ML
 ## 💡 Core Features
 
 - **AI-Powered Disease Detection**: Instantly identifies plant diseases using image recognition, offering treatment recommendations.  
-- **Market & Weather Analytics**: Delivers real-time market trends, price predictions, and weather insights for informed decision-making.  
+- **Market & Weather Analytics**: Delivers real-time market trends, price predictions, and weather insights for informed decision-making.  ![WhatsApp Image 2025-03-21 at 11 37 29_6544576f](https://github.com/user-attachments/assets/8fc59cf9-20c4-4b3e-822d-013da7a15eac)
+
 - **Personalized Crop Planning**: Recommends optimal crops based on region, soil health, and seasonal data.  
 - **Subsidy & Loan Assistance**: Simplifies finding and applying for government subsidies and loans with step-by-step guidance.  
 - **Multilingual AI Voice Support**: Assists farmers in regional languages through an interactive AI chatbot.  
 
 ---
+![Screenshot 2025-03-21 114014](https://github.com/user-attachments/assets/661bc7b1-84fe-4875-bdd5-73fdedd3b6e7)
+![Screenshot 2025-03-21 113951](https://github.com/user-attachments/assets/bc256ee5-9455-48ef-afb5-3139e337c83e)
+![Screenshot 2025-03-21 113922](https://github.com/user-attachments/assets/75feced1-fb54-4ba4-98f0-9c37cba49843)
+![Screenshot 2025-03-21 113915](https://github.com/user-attachments/assets/45aeb5ce-5254-4470-99b2-df7a6512099d)
+
 
 ## 🚀 Getting Started
 
