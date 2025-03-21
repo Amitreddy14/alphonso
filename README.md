@@ -49,6 +49,8 @@ AgriTech | AI-ML
 ![Screenshot 2025-03-21 114014](https://github.com/user-attachments/assets/661bc7b1-84fe-4875-bdd5-73fdedd3b6e7)
 ![Screenshot 2025-03-21 113951](https://github.com/user-attachments/assets/bc256ee5-9455-48ef-afb5-3139e337c83e)
 ![Screenshot 2025-03-21 113922](https://github.com/user-attachments/assets/75feced1-fb54-4ba4-98f0-9c37cba49843)
+![Screenshot 2025-03-21 114558](https://github.com/user-attachments/assets/f6109f7d-c6f6-41b8-a196-d5f90302f16e)
+
 
 
 
