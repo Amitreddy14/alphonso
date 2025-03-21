@@ -2,43 +2,80 @@ import React, { useState, useEffect } from 'react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import { WEATHER_API_KEY, WEATHER_BASE_URL } from '../config.js'; // Import from config.js
+import { WEATHER_API_KEY, WEATHER_BASE_URL } from '../config.js';
 
 const CropPrediction = ({ soilMoisture }) => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [npkValues, setNpkValues] = useState({ nitrogen: '', phosphorus: '', potassium: '' });
-  const [weatherData, setWeatherData] = useState(null); // State for weather data
+  const [weatherData, setWeatherData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [analysis, setAnalysis] = useState(null);
+  const [selectedLocation, setSelectedLocation] = useState('');
 
   const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
 
-  // Fetch weather data from OpenWeatherMap
+  const locations = {
+    'Delhi': { lat: 28.6139, lon: 77.2090 },
+    'Mumbai': { lat: 19.0760, lon: 72.8777 },
+    'Bangalore': { lat: 12.9716, lon: 77.5946 },
+    'Chennai': { lat: 13.0827, lon: 80.2707 },
+    'Kolkata': { lat: 22.5726, lon: 88.3639 },
+    'Jaipur': { lat: 26.9124, lon: 75.7873 },
+    'Lucknow': { lat: 26.8467, lon: 80.9462 },
+    'Hyderabad': { lat: 17.3850, lon: 78.4867 }
+  };
+
   useEffect(() => {
-    const fetchWeather = async () => {
+    const fetchWeatherData = async (lat, lon) => {
       try {
-        // Example coordinates (e.g., for a default location like Delhi, India)
-        const lat = 28.6139; // Replace with dynamic location if available
-        const lon = 77.2090;
-        const url = `${WEATHER_BASE_URL}/weather?lat=${lat}&lon=${lon}&appid=${WEATHER_API_KEY}&units=metric`;
-        
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('Failed to fetch weather data');
-        const data = await response.json();
+        const forecastUrl = `${WEATHER_BASE_URL}/forecast?lat=${lat}&lon=${lon}&appid=${WEATHER_API_KEY}&units=metric`;
+        const forecastResponse = await fetch(forecastUrl);
+        if (!forecastResponse.ok) throw new Error('Failed to fetch weather forecast');
+        const forecastData = await forecastResponse.json();
+
+        const forecastList = forecastData.list;
+        const avgFutureTemp = forecastList.reduce((sum, entry) => sum + entry.main.temp, 0) / forecastList.length;
+        const avgFutureHumidity = forecastList.reduce((sum, entry) => sum + entry.main.humidity, 0) / forecastList.length;
+        const totalFuturePrecip = forecastList.reduce((sum, entry) => sum + (entry.rain?.['3h'] || 0), 0);
+
+        const pastWeather = {
+          winter: { temp: 15.0, humidity: 70.0, precip: 50.0 },
+          spring: { temp: 25.0, humidity: 60.0, precip: 80.0 },
+          summer: { temp: 35.0, humidity: 75.0, precip: 200.0 },
+          fall: { temp: 28.0, humidity: 65.0, precip: 100.0 }
+        };
 
         setWeatherData({
-          temperature: data.main.temp,        // °C
-          humidity: data.main.humidity,       // %
-          precipitation: data.rain?.['1h'] || 0 // mm (rain in last 1 hour, default to 0 if not available)
+          past: pastWeather,
+          future: {
+            temperature: avgFutureTemp.toFixed(1),
+            humidity: avgFutureHumidity.toFixed(1),
+            precipitation: totalFuturePrecip.toFixed(1)
+          }
         });
       } catch (err) {
         setError('Could not load weather data: ' + err.message);
       }
     };
-    fetchWeather();
-  }, []);
+
+    const loadWeather = () => {
+      if (selectedLocation && locations[selectedLocation]) {
+        const { lat, lon } = locations[selectedLocation];
+        fetchWeatherData(lat, lon);
+      } else if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => fetchWeatherData(position.coords.latitude, position.coords.longitude),
+          () => fetchWeatherData(28.6139, 77.2090)
+        );
+      } else {
+        fetchWeatherData(28.6139, 77.2090);
+      }
+    };
+
+    loadWeather();
+  }, [selectedLocation]);
 
   const handleImageUpload = (event) => {
     const file = event.target.files[0];
@@ -52,6 +89,10 @@ const CropPrediction = ({ soilMoisture }) => {
   const handleNpkChange = (e) => {
     const { name, value } = e.target;
     setNpkValues((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleLocationChange = (e) => {
+    setSelectedLocation(e.target.value);
   };
 
   const fileToGenerativePart = async (file) => {
@@ -74,8 +115,13 @@ const CropPrediction = ({ soilMoisture }) => {
 
   const parseAnalysisResponse = (text) => {
     try {
-      const cleanedText = text.replace(/^.*?(1\.\s+Soil Identification)/s, '$1');
-      const sections = cleanedText.split(/\d+\.\s+/).filter(Boolean);
+      // Extract overall confidence
+      const overallMatch = text.match(/Overall Confidence: (\d+%)/i);
+      const overallConfidence = overallMatch ? overallMatch[1] : 'N/A';
+      const cleanedText = text.replace(/Overall Confidence: \d+%\n?/, '').trim();
+
+      // Split into sections
+      const sections = cleanedText.split(/\d+\.\s+(?=Soil Identification|Soil Health|Crop Recommendations|Soil Improvement|Disease Prevention)/).filter(Boolean);
 
       const formatSection = (section) => {
         const lines = section.split('\n')
@@ -91,14 +137,23 @@ const CropPrediction = ({ soilMoisture }) => {
       };
 
       return {
-        soilIdentification: formatSection(sections[0] || ''),
-        soilHealth: formatSection(sections[1] || ''),
-        cropRecommendations: formatSection(sections[2] || ''),
-        soilImprovement: formatSection(sections[3] || '')
+        overallConfidence,
+        soilIdentification: sections.length > 0 ? formatSection(sections[0]) : [],
+        soilHealth: sections.length > 1 ? formatSection(sections[1]) : [],
+        cropRecommendations: sections.length > 2 ? formatSection(sections[2]) : [],
+        soilImprovement: sections.length > 3 ? formatSection(sections[3]) : [],
+        diseasePrevention: sections.length > 4 ? formatSection(sections[4]) : []
       };
     } catch (error) {
       console.error('Error parsing analysis response:', error);
-      return null;
+      return {
+        overallConfidence: 'N/A',
+        soilIdentification: [],
+        soilHealth: [],
+        cropRecommendations: [],
+        soilImprovement: [],
+        diseasePrevention: []
+      };
     }
   };
 
@@ -114,11 +169,12 @@ const CropPrediction = ({ soilMoisture }) => {
       doc.setFontSize(10);
       doc.setTextColor(100, 100, 100);
       doc.text(`Generated on: ${currentDate}`, 105, 27, { align: 'center' });
+      doc.text(`Overall Confidence: ${analysis.overallConfidence}`, 105, 33, { align: 'center' });
       
       if (imagePreview) {
-        doc.addImage(imagePreview, 'JPEG', 70, 35, 70, 60);
+        doc.addImage(imagePreview, 'JPEG', 70, 40, 70, 60);
         doc.setDrawColor(200, 200, 200);
-        doc.rect(69, 34, 72, 62);
+        doc.rect(69, 39, 72, 62);
       }
       
       let startY = imagePreview ? 110 : 40;
@@ -128,12 +184,7 @@ const CropPrediction = ({ soilMoisture }) => {
         doc.setTextColor(0, 0, 0);
         doc.text(title, 14, y);
         
-        const tableData = items.map(item => {
-          if (item.key) {
-            return [item.key, item.value];
-          }
-          return ["", item.value];
-        });
+        const tableData = items.map(item => item.key ? [item.key, item.value] : ["", item.value]);
         
         if (tableData.length > 0) {
           doc.autoTable({
@@ -157,19 +208,14 @@ const CropPrediction = ({ soilMoisture }) => {
       startY = addSection('SOIL IDENTIFICATION', analysis.soilIdentification, startY);
       startY = addSection('SOIL HEALTH', analysis.soilHealth, startY);
       
-      if (startY > 250) {
-        doc.addPage();
-        startY = 20;
-      }
-      
+      if (startY > 250) { doc.addPage(); startY = 20; }
       startY = addSection('CROP RECOMMENDATIONS', analysis.cropRecommendations, startY);
       
-      if (startY > 250) {
-        doc.addPage();
-        startY = 20;
-      }
+      if (startY > 250) { doc.addPage(); startY = 20; }
+      startY = addSection('SOIL IMPROVEMENT', analysis.soilImprovement, startY);
       
-      addSection('SOIL IMPROVEMENT', analysis.soilImprovement, startY);
+      if (startY > 250) { doc.addPage(); startY = 20; }
+      addSection('DISEASE PREVENTION', analysis.diseasePrevention, startY);
       
       const pageCount = doc.internal.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
@@ -202,13 +248,15 @@ const CropPrediction = ({ soilMoisture }) => {
 
       const moistureText = soilMoisture !== null ? `Soil Moisture: ${soilMoisture}%` : "Soil Moisture: Not available";
       const weatherText = weatherData
-        ? `Weather Conditions - Temperature: ${weatherData.temperature}°C, Humidity: ${weatherData.humidity}%, Precipitation: ${weatherData.precipitation}mm`
-        : "Weather Conditions: Not available";
+        ? `Past Weather (12 months seasonal avg) - Winter (Dec-Feb): Temp ${weatherData.past.winter.temp}°C, Humidity ${weatherData.past.winter.humidity}%, Precip ${weatherData.past.winter.precip}mm; Spring (Mar-May): Temp ${weatherData.past.spring.temp}°C, Humidity ${weatherData.past.spring.humidity}%, Precip ${weatherData.past.spring.precip}mm; Summer (Jun-Aug): Temp ${weatherData.past.summer.temp}°C, Humidity ${weatherData.past.summer.humidity}%, Precip ${weatherData.past.summer.precip}mm; Fall (Sep-Nov): Temp ${weatherData.past.fall.temp}°C, Humidity ${weatherData.past.fall.humidity}%, Precip ${weatherData.past.fall.precip}mm; Future Weather (5-day avg): Temp ${weatherData.future.temperature}°C, Humidity ${weatherData.future.humidity}%, Precip ${weatherData.future.precipitation}mm`
+        : "Weather Data: Not available";
 
-      const prompt = `Analyze this soil image along with the provided NPK values (Nitrogen: ${npkValues.nitrogen} mg/kg, Phosphorus: ${npkValues.phosphorus} mg/kg, Potassium: ${npkValues.potassium} mg/kg), ${moistureText}, and ${weatherText}. Provide a clear, concise analysis in the following format:
+      const prompt = `Analyze this soil image along with the provided NPK values (Nitrogen: ${npkValues.nitrogen} mg/kg, Phosphorus: ${npkValues.phosphorus} mg/kg, Potassium: ${npkValues.potassium} mg/kg), ${moistureText}, and ${weatherText}. Provide a clear, concise analysis for the next 6 months (full crop cycle from planting to harvest), predicting crop suitability and potential diseases based on past seasonal trends and short-term future weather, in the following format, including an overall confidence percentage for the entire analysis and confidence scores where applicable:
+
+Overall Confidence: [percentage]
 
 1. Soil Identification
-- Type: [name]
+- Type: [name] (Confidence: [percentage])
 - Texture: [description]
 - Color: [description]
 - Key features: [brief list]
@@ -217,21 +265,28 @@ const CropPrediction = ({ soilMoisture }) => {
 - Nutrient Status: [Good/Fair/Poor]
 - NPK Levels: [analysis]
 - Moisture Level: [analysis]
-- Issues: [list if any]
+- Issues: [list if any] (Confidence: [percentage])
 
 3. Crop Recommendations
-- Best Crops: [list]
-- Suitability: [brief explanation considering weather]
+- Best Crops: [list] (Confidence: [percentage])
+- Suitability: [brief explanation considering past seasonal trends and future weather for next 6 months]
 - Yield Potential: [Low/Medium/High]
-- Alternatives: [list if any]
+- Irrigation Needs: [brief, considering weather trends]
+- Harvest Timing: [brief, considering weather trends for next 6 months]
 
 4. Soil Improvement
 - Amendments: [list]
 - Application: [brief]
-- Timing: [brief considering weather]
-- Maintenance: [brief tips]
+- Timing: [brief considering past and future weather trends]
+- Maintenance: [brief tips for next 6 months]
 
-Keep responses brief and clear, avoiding unnecessary formatting.`;
+5. Disease Prevention
+- Potential Diseases: [list diseases for recommended crops, considering soil, NPK, moisture, and weather]
+- Risk Factors: [brief, e.g., high humidity, poor drainage]
+- Prevention Methods: [brief list, e.g., crop rotation, fungicides]
+- Timing: [when to apply prevention, considering weather trends]
+
+Keep responses brief and clear, avoiding unnecessary formatting. If any section cannot be determined, use "Unknown" or "Not detectable" with a confidence of 0%.`;
 
       const result = await model.generateContent([prompt, imagePart]);
       const response = await result.response;
@@ -249,7 +304,8 @@ Keep responses brief and clear, avoiding unnecessary formatting.`;
     { title: "Soil Identification", key: "soilIdentification" },
     { title: "Soil Health", key: "soilHealth" },
     { title: "Crop Recommendations", key: "cropRecommendations" },
-    { title: "Soil Improvement", key: "soilImprovement" }
+    { title: "Soil Improvement", key: "soilImprovement" },
+    { title: "Disease Prevention", key: "diseasePrevention" }
   ];
 
   return (
@@ -257,7 +313,7 @@ Keep responses brief and clear, avoiding unnecessary formatting.`;
       <div className="max-w-6xl mx-auto px-4 py-8">
         <header className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-3">Crop Prediction</h1>
-          <p className="text-lg text-gray-600">Soil analysis and crop suitability recommendations</p>
+          <p className="text-lg text-gray-600">Soil analysis, crop suitability, and disease prevention</p>
         </header>
 
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-8">
@@ -343,15 +399,41 @@ Keep responses brief and clear, avoiding unnecessary formatting.`;
                   />
                 </div>
                 <div className="mt-4">
-                  <p className="text-gray-700">
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Select Location</h3>
+                  <select
+                    value={selectedLocation}
+                    onChange={handleLocationChange}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Use my current location</option>
+                    {Object.keys(locations).map((city) => (
+                      <option key={city} value={city}>{city}</option>
+                    ))}
+                  </select>
+                  <p className="text-gray-700 mt-2">
                     Real-time Soil Moisture: {soilMoisture !== null ? `${soilMoisture}%` : "Not available"}
                   </p>
                   {weatherData ? (
-                    <p className="text-gray-700 mt-2">
-                      Weather: {weatherData.temperature}°C, {weatherData.humidity}% Humidity, {weatherData.precipitation}mm Precipitation
-                    </p>
+                    <>
+                      <p className="text-gray-700 mt-2">Past Weather (12 months seasonal avg):</p>
+                      <p className="text-gray-700 ml-4">
+                        Winter: {weatherData.past.winter.temp}°C, {weatherData.past.winter.humidity}% Humidity, {weatherData.past.winter.precip}mm Precip
+                      </p>
+                      <p className="text-gray-700 ml-4">
+                        Spring: {weatherData.past.spring.temp}°C, {weatherData.past.spring.humidity}% Humidity, {weatherData.past.spring.precip}mm Precip
+                      </p>
+                      <p className="text-gray-700 ml-4">
+                        Summer: {weatherData.past.summer.temp}°C, {weatherData.past.summer.humidity}% Humidity, {weatherData.past.summer.precip}mm Precip
+                      </p>
+                      <p className="text-gray-700 ml-4">
+                        Fall: {weatherData.past.fall.temp}°C, {weatherData.past.fall.humidity}% Humidity, {weatherData.past.fall.precip}mm Precip
+                      </p>
+                      <p className="text-gray-700 mt-2">
+                        Future Weather (5-day avg): {weatherData.future.temperature}°C, {weatherData.future.humidity}% Humidity, {weatherData.future.precipitation}mm Precip
+                      </p>
+                    </>
                   ) : (
-                    <p className="text-gray-700 mt-2">Weather: Loading...</p>
+                    <p className="text-gray-700 mt-2">Weather Data: Loading...</p>
                   )}
                 </div>
               </div>
@@ -377,36 +459,43 @@ Keep responses brief and clear, avoiding unnecessary formatting.`;
           <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
             <div className="border-b border-gray-100 p-6 flex justify-between items-center">
               <h2 className="text-2xl font-semibold text-gray-900">Analysis Results</h2>
-              <button
-                onClick={handleDownload}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 flex items-center"
-              >
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Download PDF Report
-              </button>
+              <div className="flex items-center space-x-4">
+                <span className="text-gray-700 font-medium">
+                  Overall Confidence: {analysis.overallConfidence}
+                </span>
+                <button
+                  onClick={handleDownload}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 flex items-center"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Download PDF Report
+                </button>
+              </div>
             </div>
             <div className="p-8">
               <div className="grid md:grid-cols-2 gap-8">
                 {sections.map((section, idx) => (
                   <div key={idx} className="bg-gray-50 rounded-xl p-6">
-                    <h3 className="text-xl font-semibold mb-4 text-gray-900">
-                      {section.title}
-                    </h3>
+                    <h3 className="text-xl font-semibold mb-4 text-gray-900">{section.title}</h3>
                     <div className="space-y-3">
-                      {analysis[section.key]?.map((item, index) => (
-                        <div key={index} className="text-gray-700">
-                          {item.key ? (
-                            <div className="flex flex-col sm:flex-row sm:items-baseline">
-                              <span className="font-medium min-w-[120px] text-gray-900">{item.key}:</span>
-                              <span className="text-gray-600 mt-1 sm:mt-0">{item.value}</span>
-                            </div>
-                          ) : (
-                            <span className="text-gray-600">{item.value}</span>
-                          )}
-                        </div>
-                      ))}
+                      {analysis[section.key]?.length > 0 ? (
+                        analysis[section.key].map((item, index) => (
+                          <div key={index} className="text-gray-700">
+                            {item.key ? (
+                              <div className="flex flex-col sm:flex-row sm:items-baseline">
+                                <span className="font-medium min-w-[120px] text-gray-900">{item.key}:</span>
+                                <span className="text-gray-600 mt-1 sm:mt-0">{item.value}</span>
+                              </div>
+                            ) : (
+                              <span className="text-gray-600">{item.value}</span>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-gray-600">No data available</p>
+                      )}
                     </div>
                   </div>
                 ))}

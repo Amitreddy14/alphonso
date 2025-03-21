@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import { WEATHER_API_KEY, WEATHER_BASE_URL } from '../config.js';
 
 const DiseaseDetection = () => {
   const [selectedImage, setSelectedImage] = useState(null);
@@ -9,8 +10,58 @@ const DiseaseDetection = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [analysis, setAnalysis] = useState(null);
+  const [weatherData, setWeatherData] = useState(null);
+  const [selectedLocation, setSelectedLocation] = useState('');
+  const [statusLog, setStatusLog] = useState([]); // Array of { message, status: 'ongoing' | 'completed' | 'error' }
+  const [currentStep, setCurrentStep] = useState(''); // Current active step
 
   const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
+
+  const locations = {
+    'Delhi': { lat: 28.6139, lon: 77.2090 },
+    'Mumbai': { lat: 19.0760, lon: 72.8777 },
+    'Bangalore': { lat: 12.9716, lon: 77.5946 },
+    'Chennai': { lat: 13.0827, lon: 80.2707 },
+    'Kolkata': { lat: 22.5726, lon: 88.3639 }
+  };
+
+  useEffect(() => {
+    const fetchWeatherData = async (lat, lon) => {
+      try {
+        const forecastUrl = `${WEATHER_BASE_URL}/forecast?lat=${lat}&lon=${lon}&appid=${WEATHER_API_KEY}&units=metric`;
+        const response = await fetch(forecastUrl);
+        if (!response.ok) throw new Error('Failed to fetch weather');
+        const data = await response.json();
+        const forecastList = data.list;
+        const avgTemp = forecastList.reduce((sum, entry) => sum + entry.main.temp, 0) / forecastList.length;
+        const avgHumidity = forecastList.reduce((sum, entry) => sum + entry.main.humidity, 0) / forecastList.length;
+        const totalPrecip = forecastList.reduce((sum, entry) => sum + (entry.rain?.['3h'] || 0), 0);
+        setWeatherData({
+          temperature: avgTemp.toFixed(1),
+          humidity: avgHumidity.toFixed(1),
+          precipitation: totalPrecip.toFixed(1)
+        });
+      } catch (err) {
+        setError('Weather data unavailable: ' + err.message);
+      }
+    };
+
+    const loadWeather = () => {
+      if (selectedLocation && locations[selectedLocation]) {
+        const { lat, lon } = locations[selectedLocation];
+        fetchWeatherData(lat, lon);
+      } else if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => fetchWeatherData(position.coords.latitude, position.coords.longitude),
+          () => fetchWeatherData(28.6139, 77.2090)
+        );
+      } else {
+        fetchWeatherData(28.6139, 77.2090);
+      }
+    };
+
+    loadWeather();
+  }, [selectedLocation]);
 
   const handleImageUpload = (event) => {
     const file = event.target.files[0];
@@ -21,7 +72,12 @@ const DiseaseDetection = () => {
     }
   };
 
+  const handleLocationChange = (e) => {
+    setSelectedLocation(e.target.value);
+  };
+
   const fileToGenerativePart = async (file) => {
+    setCurrentStep('Converting image to data...');
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -29,93 +85,88 @@ const DiseaseDetection = () => {
         resolve({
           inlineData: { data: base64String, mimeType: file.type }
         });
+        setStatusLog(prev => [...prev, { message: 'Converting image to data...', status: 'completed' }]);
+        setCurrentStep('');
       };
-      reader.onerror = reject;
+      reader.onerror = (err) => {
+        reject(err);
+        setStatusLog(prev => [...prev, { message: 'Image conversion failed', status: 'error' }]);
+        setCurrentStep('');
+      };
       reader.readAsDataURL(file);
     });
   };
 
   const cleanFormatting = (text) => {
-    return text.replace(/\*+/g, '')
-              .replace(/#+/g, '')
-              .replace(/:{2,}/g, ':')
-              .trim();
+    return text.replace(/\*+/g, '').replace(/#+/g, '').replace(/:{2,}/g, ':').trim();
   };
 
   const parseAnalysisResponse = (text) => {
+    console.log('Raw AI Response:', text);
     try {
-      // Remove any introductory text before the numbered sections
-      const cleanedText = text.replace(/^.*?(1\.\s+Plant Identification)/s, '$1');
-      
-      const sections = cleanedText.split(/\d+\.\s+/).filter(Boolean);
-      
+      const overallMatch = text.match(/Overall Confidence: (\d+%)/i);
+      const overallConfidence = overallMatch ? overallMatch[1] : 'N/A';
+      const cleanedText = text.replace(/Overall Confidence: \d+%\n?/, '').trim();
+      const sections = cleanedText.split(/\d+\.\s+(?=Plant Identification|Health Assessment|Treatment Plan|Care Instructions|Prevention Measures)/).filter(Boolean);
+
       const formatSection = (section) => {
         const lines = section.split('\n')
           .map(line => cleanFormatting(line))
           .filter(line => line.trim().length > 0);
-        
         return lines.map(line => {
           const [key, ...valueParts] = line.split(':');
           if (valueParts.length > 0) {
-            return {
-              key: key.trim(),
-              value: valueParts.join(':').trim()
-            };
+            return { key: key.trim(), value: valueParts.join(':').trim() };
           }
           return { value: line.trim() };
         });
       };
 
       return {
-        plantIdentification: formatSection(sections[0] || ''),
-        healthAssessment: formatSection(sections[1] || ''),
-        treatmentPlan: formatSection(sections[2] || ''),
-        careInstructions: formatSection(sections[3] || '')
+        overallConfidence,
+        plantIdentification: sections.length > 0 ? formatSection(sections[0]) : [],
+        healthAssessment: sections.length > 1 ? formatSection(sections[1]) : [],
+        treatmentPlan: sections.length > 2 ? formatSection(sections[2]) : [],
+        careInstructions: sections.length > 3 ? formatSection(sections[3]) : [],
+        preventionMeasures: sections.length > 4 ? formatSection(sections[4]) : []
       };
     } catch (error) {
       console.error('Error parsing analysis response:', error);
-      return null;
+      return {
+        overallConfidence: 'N/A',
+        plantIdentification: [],
+        healthAssessment: [],
+        treatmentPlan: [],
+        careInstructions: [],
+        preventionMeasures: []
+      };
     }
   };
 
   const handleDownload = () => {
     if (analysis) {
-      // Create a new PDF document
       const doc = new jsPDF();
       const currentDate = new Date().toLocaleDateString();
-      
-      // Add title
       doc.setFontSize(20);
-      doc.setTextColor(0, 102, 204); // Blue color for title
+      doc.setTextColor(0, 102, 204);
       doc.text('Plant Analysis Report', 105, 20, { align: 'center' });
-      
-      // Add date
       doc.setFontSize(10);
-      doc.setTextColor(100, 100, 100); // Gray color for date
+      doc.setTextColor(100, 100, 100);
       doc.text(`Generated on: ${currentDate}`, 105, 27, { align: 'center' });
-      
-      // Add plant image if available
+      doc.text(`Overall Confidence: ${analysis.overallConfidence}`, 105, 33, { align: 'center' });
+
       if (imagePreview) {
-        doc.addImage(imagePreview, 'JPEG', 70, 35, 70, 60);
-        doc.setDrawColor(200, 200, 200); // Light gray border
-        doc.rect(69, 34, 72, 62);
+        doc.addImage(imagePreview, 'JPEG', 70, 40, 70, 60);
+        doc.setDrawColor(200, 200, 200);
+        doc.rect(69, 39, 72, 62);
       }
-      
+
       let startY = imagePreview ? 110 : 40;
-      
-      // Helper function to add a section to PDF
       const addSection = (title, items, y) => {
         doc.setFontSize(14);
         doc.setTextColor(0, 0, 0);
         doc.text(title, 14, y);
-        
-        const tableData = items.map(item => {
-          if (item.key) {
-            return [item.key, item.value];
-          }
-          return ["", item.value];
-        });
-        
+        const tableData = items.map(item => item.key ? [item.key, item.value] : ["", item.value]);
         if (tableData.length > 0) {
           doc.autoTable({
             startY: y + 5,
@@ -123,52 +174,31 @@ const DiseaseDetection = () => {
             body: tableData,
             theme: 'grid',
             headStyles: { fillColor: [0, 102, 204], textColor: 255 },
-            columnStyles: {
-              0: { cellWidth: 50, fontStyle: 'bold' },
-              1: { cellWidth: 'auto' }
-            },
+            columnStyles: { 0: { cellWidth: 50, fontStyle: 'bold' }, 1: { cellWidth: 'auto' } },
             styles: { overflow: 'linebreak' },
             margin: { left: 14, right: 14 }
           });
         }
-        
         return doc.lastAutoTable.finalY + 10;
       };
-      
-      // Add sections with tables
+
       startY = addSection('PLANT IDENTIFICATION', analysis.plantIdentification, startY);
       startY = addSection('HEALTH ASSESSMENT', analysis.healthAssessment, startY);
-      
-      // If we've reached the bottom of the page, add a new page
-      if (startY > 250) {
-        doc.addPage();
-        startY = 20;
-      }
-      
+      if (startY > 250) { doc.addPage(); startY = 20; }
       startY = addSection('TREATMENT RECOMMENDATIONS', analysis.treatmentPlan, startY);
-      
-      // If we've reached the bottom of the page, add a new page
-      if (startY > 250) {
-        doc.addPage();
-        startY = 20;
-      }
-      
-      addSection('CARE GUIDELINES', analysis.careInstructions, startY);
-      
-      // Add footer
+      if (startY > 250) { doc.addPage(); startY = 20; }
+      startY = addSection('CARE GUIDELINES', analysis.careInstructions, startY);
+      if (startY > 250) { doc.addPage(); startY = 20; }
+      addSection('PREVENTION MEASURES', analysis.preventionMeasures, startY);
+
       const pageCount = doc.internal.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
         doc.setFontSize(8);
         doc.setTextColor(150, 150, 150);
-        doc.text(
-          'This report was generated by Plant Health Analysis tool. For guidance purposes only.',
-          105, 285, { align: 'center' }
-        );
+        doc.text('Generated by Plant Health Analysis tool.', 105, 285, { align: 'center' });
         doc.text(`Page ${i} of ${pageCount}`, 195, 285);
       }
-      
-      // Save the PDF
       doc.save('plant-analysis-report.pdf');
     }
   };
@@ -181,15 +211,27 @@ const DiseaseDetection = () => {
 
     setLoading(true);
     setError(null);
+    setStatusLog([{ message: 'Starting analysis...', status: 'completed' }]);
+    setCurrentStep('Preparing image for analysis...');
 
     try {
       const imagePart = await fileToGenerativePart(selectedImage);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+      setStatusLog(prev => [...prev, { message: 'Preparing image for analysis...', status: 'completed' }]);
+      setCurrentStep('Fetching weather data...');
 
-      const prompt = `Analyze this plant image and provide a clear, concise analysis in the following format:
+      const weatherText = weatherData
+        ? `Current Weather (5-day avg): Temperature: ${weatherData.temperature}°C, Humidity: ${weatherData.humidity}%, Precipitation: ${weatherData.precipitation}mm`
+        : "Weather Data: Not available";
+      setStatusLog(prev => [...prev, { message: 'Fetching weather data...', status: 'completed' }]);
+      setCurrentStep('Sending image and data to AI...');
+
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+      const prompt = `Analyze this plant image with the following weather data: ${weatherText}. Provide a clear, concise analysis in the following format, including confidence scores where applicable, and an overall confidence percentage for the entire analysis. Ensure all sections are numbered and titled exactly as shown below, even if data is unavailable:
+
+Overall Confidence: [percentage]
 
 1. Plant Identification
-- Species: [name]
+- Species: [name] (Confidence: [percentage])
 - Common name: [name]
 - Family: [name]
 - Key features: [brief list]
@@ -198,7 +240,7 @@ const DiseaseDetection = () => {
 - Status: [Good/Fair/Poor]
 - Symptoms: [brief description]
 - Affected areas: [list]
-- Severity: [Mild/Moderate/Severe]
+- Severity: [Mild/Moderate/Severe] (Confidence: [percentage])
 
 3. Treatment Plan
 - Immediate actions: [list]
@@ -213,26 +255,47 @@ const DiseaseDetection = () => {
 - Temperature: [range]
 - Additional: [brief tips]
 
-Keep responses brief and clear, avoiding unnecessary formatting.`;
+5. Prevention Measures
+- Potential future issues: [list, considering weather]
+- Risk factors: [brief, e.g., high humidity]
+- Preventive actions: [list]
+- Timing: [brief]
+
+Keep responses brief and clear, avoiding unnecessary formatting like bold or asterisks. If any section cannot be determined, use "Unknown" or "Not detectable" with a confidence of 0%.`;
 
       const result = await model.generateContent([prompt, imagePart]);
+      setStatusLog(prev => [...prev, { message: 'Sending image and data to AI...', status: 'completed' }]);
+      setCurrentStep('Processing AI response...');
+
       const response = await result.response;
       const text = response.text();
       const structuredAnalysis = parseAnalysisResponse(text);
       setAnalysis(structuredAnalysis);
+      setStatusLog(prev => [
+        ...prev,
+        { message: 'Processing AI response...', status: 'completed' },
+        { message: 'Analysis complete!', status: 'completed' }
+      ]);
+      setCurrentStep('');
     } catch (err) {
       setError(err.message || 'Failed to analyze image');
+      setStatusLog(prev => [
+        ...prev,
+        { message: currentStep, status: 'error' },
+        { message: `Error: ${err.message || 'Analysis failed'}`, status: 'error' }
+      ]);
+      setCurrentStep('');
     } finally {
       setLoading(false);
     }
   };
 
-  // Define section titles and their corresponding keys in the analysis object
   const sections = [
     { title: "Plant Identification", key: "plantIdentification" },
     { title: "Health Assessment", key: "healthAssessment" },
     { title: "Treatment Plan", key: "treatmentPlan" },
-    { title: "Care Instructions", key: "careInstructions" }
+    { title: "Care Instructions", key: "careInstructions" },
+    { title: "Prevention Measures", key: "preventionMeasures" }
   ];
 
   return (
@@ -243,17 +306,13 @@ Keep responses brief and clear, avoiding unnecessary formatting.`;
           <p className="text-lg text-gray-600">Instant disease detection and professional care recommendations</p>
         </header>
 
-        {/* Analysis Section */}
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-8">
           <div className="grid md:grid-cols-2 gap-6 p-8">
             <div className="space-y-6">
               <h2 className="text-2xl font-semibold text-gray-900">Upload Image</h2>
               <div 
                 className="border-2 border-dashed border-gray-200 rounded-xl transition-all duration-300 hover:border-blue-400 hover:bg-blue-50/30"
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
                 onDrop={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -272,16 +331,9 @@ Keep responses brief and clear, avoiding unnecessary formatting.`;
                   className="hidden"
                   id="image-upload"
                 />
-                <label
-                  htmlFor="image-upload"
-                  className="cursor-pointer block p-6"
-                >
+                <label htmlFor="image-upload" className="cursor-pointer block p-6">
                   {imagePreview ? (
-                    <img
-                      src={imagePreview}
-                      alt="Plant preview"
-                      className="max-h-96 mx-auto rounded-lg object-contain"
-                    />
+                    <img src={imagePreview} alt="Plant preview" className="max-h-96 mx-auto rounded-lg object-contain" />
                   ) : (
                     <div className="text-center py-16">
                       <div className="mx-auto w-16 h-16 mb-4 text-blue-500">
@@ -305,33 +357,49 @@ Keep responses brief and clear, avoiding unnecessary formatting.`;
                 </div>
               )}
               <div className="bg-gray-50 rounded-xl p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Analysis Features</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Select Location</h3>
+                <select
+                  value={selectedLocation}
+                  onChange={handleLocationChange}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Use my current location</option>
+                  {Object.keys(locations).map((city) => (
+                    <option key={city} value={city}>{city}</option>
+                  ))}
+                </select>
+                <h3 className="text-lg font-medium text-gray-900 mt-4 mb-2">Analysis Features</h3>
                 <ul className="space-y-3 text-gray-600">
                   <li className="flex items-center">
                     <svg className="w-5 h-5 mr-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                     </svg>
                     Plant Species Identification
                   </li>
                   <li className="flex items-center">
                     <svg className="w-5 h-5 mr-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                     </svg>
                     Disease Detection
                   </li>
                   <li className="flex items-center">
                     <svg className="w-5 h-5 mr-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                     </svg>
                     Treatment Recommendations
                   </li>
                   <li className="flex items-center">
                     <svg className="w-5 h-5 mr-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                     </svg>
-                    Care Guidelines
+                    Care Guidelines & Prevention
                   </li>
                 </ul>
+                {weatherData && (
+                  <p className="text-gray-700 mt-4">
+                    Weather: {weatherData.temperature}°C, {weatherData.humidity}% Humidity, {weatherData.precipitation}mm Precip
+                  </p>
+                )}
               </div>
               <button
                 onClick={analyzeImage}
@@ -341,51 +409,86 @@ Keep responses brief and clear, avoiding unnecessary formatting.`;
                 {loading ? (
                   <div className="flex items-center justify-center">
                     <div className="animate-spin w-6 h-6 border-3 border-white border-t-transparent rounded-full mr-3" />
-                    Analyzing Image...
+                    Processing...
                   </div>
                 ) : (
                   'Start Analysis'
                 )}
               </button>
+              {loading && (
+                <div className="mt-4 bg-white p-4 rounded-lg shadow-md max-h-48 overflow-y-auto border border-gray-200">
+                  <h4 className="text-sm font-semibold text-gray-800 mb-3">Analysis Progress</h4>
+                  <ul className="space-y-2 text-sm">
+                    {statusLog.map((log, index) => (
+                      <li key={index} className="flex items-center">
+                        {log.status === 'completed' ? (
+                          <svg className="w-4 h-4 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : log.status === 'error' ? (
+                          <svg className="w-4 h-4 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        ) : null}
+                        <span className={log.status === 'completed' ? 'text-green-600' : log.status === 'error' ? 'text-red-600' : 'text-gray-600'}>
+                          {log.message}
+                        </span>
+                      </li>
+                    ))}
+                    {currentStep && (
+                      <li className="flex items-center animate-pulse">
+                        <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mr-2"></div>
+                        <span className="text-orange-600">{currentStep}</span>
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Results Section */}
         {analysis && (
           <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
             <div className="border-b border-gray-100 p-6 flex justify-between items-center">
               <h2 className="text-2xl font-semibold text-gray-900">Analysis Results</h2>
-              <button
-                onClick={handleDownload}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 flex items-center"
-              >
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Download PDF Report
-              </button>
+              <div className="flex items-center space-x-4">
+                <span className="text-gray-700 font-medium">
+                  Overall Confidence: {analysis.overallConfidence}
+                </span>
+                <button
+                  onClick={handleDownload}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 flex items-center"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Download PDF Report
+                </button>
+              </div>
             </div>
             <div className="p-8">
               <div className="grid md:grid-cols-2 gap-8">
                 {sections.map((section, idx) => (
                   <div key={idx} className="bg-gray-50 rounded-xl p-6">
-                    <h3 className="text-xl font-semibold mb-4 text-gray-900">
-                      {section.title}
-                    </h3>
+                    <h3 className="text-xl font-semibold mb-4 text-gray-900">{section.title}</h3>
                     <div className="space-y-3">
-                      {analysis[section.key]?.map((item, index) => (
-                        <div key={index} className="text-gray-700">
-                          {item.key ? (
-                            <div className="flex flex-col sm:flex-row sm:items-baseline">
-                              <span className="font-medium min-w-[120px] text-gray-900">{item.key}:</span>
-                              <span className="text-gray-600 mt-1 sm:mt-0">{item.value}</span>
-                            </div>
-                          ) : (
-                            <span className="text-gray-600">{item.value}</span>
-                          )}
-                        </div>
-                      ))}
+                      {analysis[section.key]?.length > 0 ? (
+                        analysis[section.key].map((item, index) => (
+                          <div key={index} className="text-gray-700">
+                            {item.key ? (
+                              <div className="flex flex-col sm:flex-row sm:items-baseline">
+                                <span className="font-medium min-w-[120px] text-gray-900">{item.key}:</span>
+                                <span className="text-gray-600 mt-1 sm:mt-0">{item.value}</span>
+                              </div>
+                            ) : (
+                              <span className="text-gray-600">{item.value}</span>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-gray-600">No data available</p>
+                      )}
                     </div>
                   </div>
                 ))}

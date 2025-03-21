@@ -8,8 +8,9 @@ function CropCalendar() {
   const [showModal, setShowModal] = useState(false);
   const itemsPerPage = 8;
 
-  // Enhanced crop calendar data with crops for every region
+  // Expanded crop calendar data with 40 crops
   const cropData = [
+    // Original 20 crops
     {
       id: 1,
       crop: 'Wheat',
@@ -106,7 +107,6 @@ function CropCalendar() {
       harvestPeriod: 'Mid to late summer',
       details: 'Needs warm soil (at least 65°F). Plant seeds in hills or transplant seedlings after all danger of frost has passed. Provide ample growing space.'
     },
-    // Added crops for each region
     {
       id: 13,
       crop: 'Citrus',
@@ -170,6 +170,167 @@ function CropCalendar() {
       sowingPeriod: 'Early spring/late summer',
       harvestPeriod: 'Early summer/fall',
       details: 'Cool-season crop that grows best in temperatures between 65-75°F. Requires consistent moisture and fertile soil high in organic matter.'
+    },
+    // New 20 crops added
+    {
+      id: 21,
+      crop: 'Oats',
+      region: 'North',
+      sowingPeriod: 'March - April',
+      harvestPeriod: 'July - August',
+      details: 'Cool-season grain crop. Plant early spring in well-drained soil. Tolerates poor soils better than other grains.'
+    },
+    {
+      id: 22,
+      crop: 'Sorghum',
+      region: 'South',
+      sowingPeriod: 'May - June',
+      harvestPeriod: 'September - October',
+      details: 'Drought-tolerant crop suited for hot climates. Plant when soil warms to 60°F. Used for grain, forage, or syrup.'
+    },
+    {
+      id: 23,
+      crop: 'Millet',
+      region: 'Central',
+      sowingPeriod: 'May - June',
+      harvestPeriod: 'August - September',
+      details: 'Fast-growing, drought-resistant grain. Sow in warm soil (65°F+). Ideal for arid regions with short growing seasons.'
+    },
+    {
+      id: 24,
+      crop: 'Rye',
+      region: 'Midwest',
+      sowingPeriod: 'September - October',
+      harvestPeriod: 'June - July',
+      details: 'Hardy winter crop. Plant in fall for cover or grain. Thrives in poor soils and cold climates.'
+    },
+    {
+      id: 25,
+      crop: 'Peas',
+      region: 'Northeast',
+      sowingPeriod: 'March - April',
+      harvestPeriod: 'June - July',
+      details: 'Cool-season crop. Plant as soon as soil can be worked. Prefers well-drained, fertile soil and moderate moisture.'
+    },
+    {
+      id: 26,
+      crop: 'Pumpkin',
+      region: 'East',
+      sowingPeriod: 'May - June',
+      harvestPeriod: 'September - October',
+      details: 'Warm-season crop. Plant after last frost in rich, well-drained soil. Needs ample space and full sun.'
+    },
+    {
+      id: 27,
+      crop: 'Grapes',
+      region: 'West',
+      sowingPeriod: 'Spring (planting vines)',
+      harvestPeriod: 'August - October',
+      details: 'Perennial crop. Plant dormant vines in spring. Requires well-drained soil, full sun, and trellising.'
+    },
+    {
+      id: 28,
+      crop: 'Spinach',
+      region: 'Various',
+      sowingPeriod: 'Early spring/fall',
+      harvestPeriod: '30-50 days after planting',
+      details: 'Cool-season leafy green. Grows best in 50-70°F. Succession plant for continuous harvest.'
+    },
+    {
+      id: 29,
+      crop: 'Onions',
+      region: 'North',
+      sowingPeriod: 'March - April',
+      harvestPeriod: 'July - September',
+      details: 'Plant sets or seeds in early spring. Prefers loose, fertile soil with good drainage. Long-day varieties for northern regions.'
+    },
+    {
+      id: 30,
+      crop: 'Garlic',
+      region: 'Midwest',
+      sowingPeriod: 'October - November',
+      harvestPeriod: 'June - July',
+      details: 'Plant cloves in fall for next summer harvest. Needs well-drained soil and cold period for bulb formation.'
+    },
+    {
+      id: 31,
+      crop: 'Cucumbers',
+      region: 'South',
+      sowingPeriod: 'April - May',
+      harvestPeriod: 'June - August',
+      details: 'Warm-season crop. Plant after frost in fertile, well-drained soil. Provide trellis for vining types.'
+    },
+    {
+      id: 32,
+      crop: 'Peppers',
+      region: 'West',
+      sowingPeriod: 'March - April (indoors)',
+      harvestPeriod: 'July - September',
+      details: 'Start indoors 8 weeks before last frost. Transplant in warm soil (65°F+). Needs full sun and consistent moisture.'
+    },
+    {
+      id: 33,
+      crop: 'Alfalfa',
+      region: 'Central',
+      sowingPeriod: 'April - May',
+      harvestPeriod: 'Multiple cuts (summer)',
+      details: 'Perennial forage crop. Plant in spring in well-drained soil. Harvest 3-5 times per season.'
+    },
+    {
+      id: 34,
+      crop: 'Chickpeas',
+      region: 'East',
+      sowingPeriod: 'April - May',
+      harvestPeriod: 'August - September',
+      details: 'Warm-season legume. Plant in well-drained soil after frost. Drought-tolerant once established.'
+    },
+    {
+      id: 35,
+      crop: 'Lentils',
+      region: 'North',
+      sowingPeriod: 'April - May',
+      harvestPeriod: 'July - August',
+      details: 'Cool-season legume. Sow in spring in loose soil. Prefers moderate moisture and well-drained conditions.'
+    },
+    {
+      id: 36,
+      crop: 'Eggplant',
+      region: 'South',
+      sowingPeriod: 'March - April (indoors)',
+      harvestPeriod: 'July - September',
+      details: 'Warm-season crop. Start indoors and transplant after frost. Needs fertile soil and full sun.'
+    },
+    {
+      id: 37,
+      crop: 'Kale',
+      region: 'Northeast',
+      sowingPeriod: 'Early spring/late summer',
+      harvestPeriod: 'Late spring/fall',
+      details: 'Cold-tolerant leafy green. Plant in fertile soil. Harvest outer leaves for continuous growth.'
+    },
+    {
+      id: 38,
+      crop: 'Radishes',
+      region: 'Various',
+      sowingPeriod: 'Year-round (cool seasons)',
+      harvestPeriod: '20-30 days after planting',
+      details: 'Fast-growing root crop. Sow in cool weather. Thin seedlings for best root development.'
+    },
+    {
+      id: 39,
+      crop: 'Apples',
+      region: 'Midwest',
+      sowingPeriod: 'Spring (planting trees)',
+      harvestPeriod: 'August - October',
+      details: 'Perennial fruit crop. Plant bare-root trees in spring. Needs well-drained soil and chilling hours for fruit set.'
+    },
+    {
+      id: 40,
+      crop: 'Sugarcane',
+      region: 'South',
+      sowingPeriod: 'February - March',
+      harvestPeriod: 'October - January',
+      details: 'Tropical crop requiring warm, humid conditions. Plant cuttings in fertile soil. Long growing season (10-12 months).'
     }
   ];
 
