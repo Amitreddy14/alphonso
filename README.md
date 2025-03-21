@@ -24,7 +24,7 @@ Farmers in India face significant challenges:
   - Amit Reddy  
   - Abhijit Ranjan  
   - Aditya  
-- **Email**: [amitreddy@gmail.com]  
+- **Email**: [jsammureddy140804@gmail.com]  
 - **Email**: [abhijitgyan121@gmail.com]
 - **Email**: [aditya03123@gmail.com]
 
