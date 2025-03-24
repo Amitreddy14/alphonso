@@ -58,8 +58,8 @@ AgriTech | AI-ML
 
 ### Prerequisites
 
-- **Node.js**: v16 or higher  
-- **npm**: v8 or higher  
+- **Node.js**: version 16
+- **npm**: version 8
 - **MongoDB**: Database  
 - **Selenium**: For web scraping functionality  
 
