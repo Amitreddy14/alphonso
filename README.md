@@ -23,7 +23,7 @@ Farmers in India face significant challenges:
 - **Team Members**:  
   - Amit Reddy  
   - Abhijit Ranjan  
-  - Aditya  
+  - Aditya K
 - **Email**: jsammureddy140804@gmail.com  
 - **Email**: abhijitgyan121@gmail.com
 - **Email**: aditya03123@gmail.com
@@ -32,7 +32,7 @@ Farmers in India face significant challenges:
 
 ## 🌐 Domain
 
-AgriTech | AI-ML
+AgriTech | AI-ML | IOT
 
 ---
 
